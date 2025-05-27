@@ -323,7 +323,7 @@ def get_headers(params, boundary):
     """Returns a dictionary with Content-Type and Content-Length headers
     for the multipart/form-data encoding of ``params``."""
     headers = {}
-    boundary = urllib.quote_plus(boundary)
+    boundary = urllib.parse.quote_plus(boundary)
     headers['Content-Type'] = "multipart/form-data; boundary=%s" % boundary
     headers['Content-Length'] = str(get_body_size(params, boundary))
     return headers
