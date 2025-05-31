@@ -11,10 +11,19 @@ import re
 import urllib.parse
 from email.header import Header
 
+# Python 2->3 quick compatability shims
 try:
     unicode
 except NameError:            # running on Py-3
     unicode = str
+
+# re-introduce the old cmp(a, b) helper
+try:
+    cmp  # Python 2 already has it
+except NameError:                 # Python 3 – define it
+    def cmp(a, b):
+        """Return -1 if a < b, 0 if a == b, +1 if a > b."""
+        return (a > b) - (a < b)
 
 
 __all__ = ['gen_boundary', 'encode_and_quote', 'MultipartParam',
@@ -96,7 +105,7 @@ class MultipartParam(object):
     transferred, and the total size.
     """
 
-    def __init__(self, name, *, value=None, filename=None,
+    def __init__(self, name, value=None, filename=None,
                  filetype="text/plain; charset=utf-8",
                  filesize=None, fileobj=None, cb=None):
 
@@ -148,6 +157,7 @@ class MultipartParam(object):
                     raise ValueError("Could not determine filesize") from exc
         else:
             self.filesize = filesize
+
 
     def __cmp__(self, other):
         attrs = ['name', 'value', 'filename', 'filetype', 'filesize', 'fileobj']
