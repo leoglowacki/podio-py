@@ -8,8 +8,14 @@ multipart/form-data is the standard way to upload files over HTTP"""
 import mimetypes
 import os
 import re
-import urllib
+import urllib.parse
 from email.header import Header
+
+try:
+    unicode
+except NameError:            # running on Py-3
+    unicode = str
+
 
 __all__ = ['gen_boundary', 'encode_and_quote', 'MultipartParam',
            'encode_string', 'encode_file_header', 'get_body_size', 'get_headers',
@@ -23,14 +29,13 @@ except ImportError:
 try:
     import uuid
 
-
     def gen_boundary():
         """Returns a random string to use as the boundary for a message"""
         return uuid.uuid4().hex
+
 except ImportError:
     import random
     import sha
-
 
     def gen_boundary():
         """Returns a random string to use as the boundary for a message"""
@@ -44,18 +49,17 @@ def encode_and_quote(data):
     if data is None:
         return None
 
-    if isinstance(data, unicode):
-        data = data.encode("utf-8")
+    if isinstance(data, bytes):
+        data = data.decode("utf-8")
     return urllib.parse.quote_plus(data)
 
 
 def _strify(s):
-    """If s is a unicode string, encode it to UTF-8 and return the results,
-    otherwise return str(s), or None if s is None"""
+    """Return *s* coerced to str (UTF-8)."""
     if s is None:
         return None
-    if isinstance(s, unicode):
-        return s.encode("utf-8")
+    if isinstance(s, bytes):          # accept raw bytes from callers
+        return s.decode('utf-8')
     return str(s)
 
 
@@ -92,40 +96,58 @@ class MultipartParam(object):
     transferred, and the total size.
     """
 
-    def __init__(self, name, value=None, filename=None, filetype=None,
+    def __init__(self, name, *, value=None, filename=None,
+                 filetype="text/plain; charset=utf-8",
                  filesize=None, fileobj=None, cb=None):
-        self.name = Header(name).encode()
-        self.value = _strify(value)
+
+        # Header-name must be pure ASCII; let email.Header handle RFC-2047
+        self.name = str(Header(name, "utf-8"))     # ← text, not bytes
+
+        # Normalise simple text fields
+        self.value     = _strify(value)
+        self.filetype  = _strify(filetype)
+
+        # -------- filename handling ----------
         if filename is None:
             self.filename = None
         else:
-            if isinstance(filename, unicode):
-                # Encode with XML entities
-                self.filename = filename.encode("ascii", "xmlcharrefreplace")
-            else:
-                self.filename = str(filename)
-            self.filename = self.filename.encode("string_escape"). \
-                replace('"', '\\"')
-        self.filetype = _strify(filetype)
+            # Ensure we start with text
+            if isinstance(filename, bytes):
+                filename = filename.decode("utf-8", "replace")
 
-        self.filesize = filesize
-        self.fileobj = fileobj
-        self.cb = cb
+            # XML-escape any lone non-ASCII code points → ASCII text
+            xml_safe = filename.encode("ascii", "xmlcharrefreplace")  \
+                               .decode("ascii")
 
-        if self.value is not None and self.fileobj is not None:
+            # Backslash-escape for the multipart header value
+            self.filename = (xml_safe
+                             .encode("unicode_escape")  # Py-3 codec
+                             .decode("ascii")           # back to str
+                             .replace('"', r'\"'))
+
+            # Alternatively, for modern user-agents:
+            # self.filename = urllib.parse.quote(filename, safe="")
+
+        # -------- binary payload ----------
+        if self.value is not None and fileobj is not None:
             raise ValueError("Only one of value or fileobj may be specified")
 
+        self.fileobj  = fileobj
+        self.cb       = cb
+
+        # Probe size if caller did not supply it
         if fileobj is not None and filesize is None:
-            # Try and determine the file size
             try:
                 self.filesize = os.fstat(fileobj.fileno()).st_size
             except (OSError, AttributeError, UnsupportedOperation):
                 try:
-                    fileobj.seek(0, 2)
+                    fileobj.seek(0, os.SEEK_END)
                     self.filesize = fileobj.tell()
                     fileobj.seek(0)
-                except:
-                    raise ValueError("Could not determine filesize")
+                except Exception as exc:
+                    raise ValueError("Could not determine filesize") from exc
+        else:
+            self.filesize = filesize
 
     def __cmp__(self, other):
         attrs = ['name', 'value', 'filename', 'filetype', 'filesize', 'fileobj']
