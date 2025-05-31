@@ -376,27 +376,27 @@ class MultipartYielder:
     def __iter__(self):
         return self
 
-    def next(self):
-        """generator function to yield multipart/form-data representation
-        of parameters"""
+    # ---- NEW: Python-3 iterator hook -----------------------------
+
+    def __next__(self):
+        """Return the next data block for str.join()."""
+        # *** this is just your old `next()` logic, unchanged ***
         if self.param_iter is not None:
             try:
-                block = self.param_iter.next()
+                block = next(self.param_iter)  # use built-in next()
                 self.current += len(block)
                 if self.cb:
                     self.cb(self.p, self.current, self.total)
                 return block
             except StopIteration:
-                self.p = None
-                self.param_iter = None
+                self.p = self.param_iter = None
 
         if self.i is None:
             raise StopIteration
         elif self.i >= len(self.params):
-            self.param_iter = None
-            self.p = None
+            self.param_iter = self.p = None
             self.i = None
-            block = "--%s--\r\n" % self.boundary
+            block = f"--{self.boundary}--\r\n"
             self.current += len(block)
             if self.cb:
                 self.cb(self.p, self.current, self.total)
@@ -405,7 +405,10 @@ class MultipartYielder:
         self.p = self.params[self.i]
         self.param_iter = self.p.iter_encode(self.boundary)
         self.i += 1
-        return self.next()
+        return self.__next__()  # tail-recursion to fetch first chunk
+
+    # ---- OPTIONAL: keep Py-2 compatibility -----------------------
+    next = __next__
 
     def reset(self):
         self.i = 0
