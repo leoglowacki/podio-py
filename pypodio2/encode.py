@@ -248,7 +248,7 @@ class MultipartParam(object):
         headers.append("")
         headers.append("")
 
-        return "\r\n".join(headers)
+        return "\r\n".join(headers).encode("ascii")
 
     def encode(self, boundary):
         """Returns the string encoding of this parameter"""
@@ -280,15 +280,14 @@ class MultipartParam(object):
             yield block
             if self.cb:
                 self.cb(self, current, total)
-            last_block = ""
-            encoded_boundary = "--%s" % encode_and_quote(boundary)
-            boundary_exp = re.compile("^%s$" % re.escape(encoded_boundary),
-                                      re.M)
+            last_block = b""
+            encoded_boundary = b"--" + encode_and_quote(boundary).encode("ascii")
+            boundary_exp = re.compile(b"^" + re.escape(encoded_boundary) + b"$", re.M)
             while True:
                 block = self.fileobj.read(blocksize)
                 if not block:
                     current += 2
-                    yield "\r\n"
+                    yield b"\r\n"
                     if self.cb:
                         self.cb(self, current, total)
                     break
