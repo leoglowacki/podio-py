@@ -255,12 +255,12 @@ class MultipartParam(object):
         if self.value is None:
             value = self.fileobj.read()
         else:
-            value = self.value
+            value = self.value.encode("utf-8")
 
-        if re.search("^--%s$" % re.escape(boundary), value, re.M):
+        if re.search(b"^--" + re.escape(boundary.encode()) + b"$", value, re.M):
             raise ValueError("boundary found in encoded string")
 
-        return "%s%s\r\n" % (self.encode_hdr(boundary), value)
+        return self.encode_hdr(boundary) + value + b"\r\n"
 
     def iter_encode(self, boundary, blocksize=4096):
         """Yields the encoding of this parameter

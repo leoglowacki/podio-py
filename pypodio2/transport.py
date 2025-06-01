@@ -130,8 +130,10 @@ class HttpTransport(object):
             body = json.dumps(kwargs)
         elif 'type' in kwargs:
             if kwargs['type'] == 'multipart/form-data':
-                body, new_headers = multipart_encode(kwargs['body'])
-                body = "".join(body)
+                #body, new_headers = multipart_encode(kwargs['body'])
+                #body = "".join(body)
+                body_iter, new_headers = multipart_encode(kwargs["body"])
+                body = b"".join(body_iter)  # bytes join
                 headers.update(new_headers)
             else:
                 body = kwargs['body']
