@@ -224,30 +224,29 @@ class MultipartParam(object):
                 retval.append(cls(name, value))
         return retval
 
-    def encode_hdr(self, boundary):
-        """Returns the header of the encoding of this parameter"""
+    def encode_hdr(self, boundary) -> bytes:
+        """Return the multipart header for this parameter as raw bytes."""
         boundary = encode_and_quote(boundary)
 
-        headers = ["--%s" % boundary]
+        headers = [f"--{boundary}"]
 
+        # Content-Disposition
         if self.filename:
-            disposition = 'form-data; name="%s"; filename="%s"' % (self.name,
-                                                                   self.filename)
+            disposition = (
+                f'form-data; name="{self.name}"; filename="{self.filename}"'
+            )
         else:
-            disposition = 'form-data; name="%s"' % self.name
+            disposition = f'form-data; name="{self.name}"'
+        headers.append(f"Content-Disposition: {disposition}")
 
-        headers.append("Content-Disposition: %s" % disposition)
+        # Content-Type
+        headers.append(f"Content-Type: {self.filetype or 'text/plain; charset=utf-8'}")
 
-        if self.filetype:
-            filetype = self.filetype
-        else:
-            filetype = "text/plain; charset=utf-8"
-
-        headers.append("Content-Type: %s" % filetype)
-
+        # Blank line separates header from body
         headers.append("")
         headers.append("")
 
+        # Join with CRLF and return as ASCII bytes
         return "\r\n".join(headers).encode("ascii")
 
     def encode(self, boundary):
@@ -257,8 +256,9 @@ class MultipartParam(object):
         else:
             value = self.value.encode("utf-8")
 
-        if re.search(b"^--" + re.escape(boundary.encode()) + b"$", value, re.M):
-            raise ValueError("boundary found in encoded string")
+            # Prevent boundary-smuggling in text fields
+            if re.search(rb"^--" + re.escape(boundary.encode()) + rb"$", value, re.M):
+                raise ValueError("boundary found in encoded string")
 
         return self.encode_hdr(boundary) + value + b"\r\n"
 
@@ -301,12 +301,11 @@ class MultipartParam(object):
                     self.cb(self, current, total)
 
     def get_size(self, boundary):
-        """Returns the size in bytes that this param will be when encoded
-        with the given boundary."""
-        if self.filesize is not None:
+        """Return the number of bytes this part will occupy."""
+        if self.filesize is not None:  # a real file, we already know
             valuesize = self.filesize
-        else:
-            valuesize = len(self.value)
+        else:  # simple text field → UTF-8 bytes
+            valuesize = len(self.value.encode("utf-8"))
 
         return len(self.encode_hdr(boundary)) + 2 + valuesize
 
