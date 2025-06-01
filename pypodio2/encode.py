@@ -394,7 +394,7 @@ class MultipartYielder:
         elif self.i >= len(self.params):
             self.param_iter = self.p = None
             self.i = None
-            block = f"--{self.boundary}--\r\n"
+            block = f"--{self.boundary}--\r\n".encode("ascii")
             self.current += len(block)
             if self.cb:
                 self.cb(self.p, self.current, self.total)
