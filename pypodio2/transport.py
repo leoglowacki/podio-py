@@ -134,6 +134,7 @@ class HttpTransport(object):
                 #body = "".join(body)
                 body_iter, new_headers = multipart_encode(kwargs["body"])
                 body = b"".join(body_iter)  # bytes join
+                new_headers["Content-Length"] = str(len(body))
                 headers.update(new_headers)
             else:
                 body = kwargs['body']
